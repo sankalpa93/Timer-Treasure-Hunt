@@ -1,0 +1,154 @@
+import pygame
+import sys
+import random
+import os
+
+# Initialize Pygame
+pygame.init()
+pygame.mixer.init()
+
+# Screen setup
+WIDTH, HEIGHT = 800, 600
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Timer Treasure Hunt")
+
+clock = pygame.time.Clock()
+FPS = 60
+
+# Colors
+WHITE = (255, 255, 255)
+BLUE = (0, 128, 255)
+GOLD = (255, 215, 0)
+BLACK = (0, 0, 0)
+GRAY = (200, 200, 200)
+
+# Fonts
+font = pygame.font.SysFont(None, 40)
+large_font = pygame.font.SysFont(None, 60)
+
+# Sound
+try:
+    beep_sound = pygame.mixer.Sound("beep.wav")
+except:
+    beep_sound = None
+
+# Load images or use shapes
+def load_image(path, size):
+    if os.path.exists(path):
+        img = pygame.image.load(path).convert_alpha()
+        return pygame.transform.scale(img, size)
+    return None
+
+player_img = load_image("player.png", (50, 50))
+coin_img = load_image("coin.png", (30, 30))
+background_img = load_image("background.png", (WIDTH, HEIGHT))
+
+# Levels
+level = 1
+coins_per_level = 5
+time_limit = 20
+
+def reset_game():
+    global player, coins, score, start_ticks, level, time_left
+    player = pygame.Rect(100, 100, 50, 50)
+    coins = []
+    for _ in range(coins_per_level + (level - 1) * 2):
+        x = random.randint(50, WIDTH - 80)
+        y = random.randint(50, HEIGHT - 80)
+        coins.append(pygame.Rect(x, y, 30, 30))
+    score = 0
+    start_ticks = pygame.time.get_ticks()
+    time_left = time_limit
+
+# Button
+def draw_button(text, x, y, w, h):
+    mouse = pygame.mouse.get_pos()
+    click = pygame.mouse.get_pressed()
+    pygame.draw.rect(screen, GRAY, (x, y, w, h))
+    btn_text = font.render(text, True, BLACK)
+    screen.blit(btn_text, (x + 10, y + 10))
+    if x < mouse[0] < x + w and y < mouse[1] < y + h:
+        if click[0] == 1:
+            return True
+    return False
+
+reset_game()
+
+# Game loop
+running = True
+game_over = False
+
+while running:
+    clock.tick(FPS)
+    seconds = time_limit - (pygame.time.get_ticks() - start_ticks) // 1000
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+    if not game_over:
+        # Movement
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            player.x -= 5
+        if keys[pygame.K_RIGHT]:
+            player.x += 5
+        if keys[pygame.K_UP]:
+            player.y -= 5
+        if keys[pygame.K_DOWN]:
+            player.y += 5
+
+        # Coin collision
+        for coin in coins[:]:
+            if player.colliderect(coin):
+                coins.remove(coin)
+                score += 1
+
+        # Countdown sound
+        if seconds in [5, 4, 3, 2, 1] and beep_sound:
+            beep_sound.play()
+
+        if seconds <= 0 or len(coins) == 0:
+            game_over = True
+
+    # Draw
+    if background_img:
+        screen.blit(background_img, (0, 0))
+    else:
+        screen.fill(WHITE)
+
+    # Draw player
+    if player_img:
+        screen.blit(player_img, player)
+    else:
+        pygame.draw.rect(screen, BLUE, player)
+
+    # Draw coins
+    for coin in coins:
+        if coin_img:
+            screen.blit(coin_img, coin)
+        else:
+            pygame.draw.ellipse(screen, GOLD, coin)
+
+    # Score and timer
+    screen.blit(font.render(f"Score: {score}", True, BLACK), (10, 10))
+    screen.blit(font.render(f"Time Left: {max(0, seconds)}", True, BLACK), (10, 50))
+    screen.blit(font.render(f"Level: {level}", True, BLACK), (10, 90))
+
+    # Game over screen
+    if game_over:
+        message = "Level Complete!" if len(coins) == 0 else "Time's Up!"
+        screen.blit(large_font.render(message, True, BLACK), (WIDTH // 2 - 150, HEIGHT // 2 - 50))
+
+        if draw_button("Next Level" if len(coins) == 0 else "Restart", WIDTH // 2 - 100, HEIGHT // 2 + 20, 200, 50):
+            if len(coins) == 0:
+                level += 1
+            else:
+                level = 1
+            game_over = False
+            reset_game()
+
+    pygame.display.flip()
+
+pygame.quit()
+sys.exit()
